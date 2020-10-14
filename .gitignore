@@ -1,3 +1,6 @@
 .vscode
 raw
 curated
+/venv
+*.json
+*.pyc
