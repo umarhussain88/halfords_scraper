@@ -1,10 +1,10 @@
 from pathlib import Path
 import pandas as pd
 import json
-from collections import defaultdict
+from import_data import import_data_to_db,engine
 
 
-def get_latest_files(path=Path.cwd(), ext="json"):
+def get_latest_files(path=Path(r'halfords\spiders'), ext="json"):
 
     """Takes a source path and extension and returns the max file"""
     file_dict = {
@@ -91,9 +91,8 @@ def parse_files_into_raw_curated(
 ):
     """Moves file into a proper folder structure, mimicing structure in a datalake."""
 
-    file_log_dict = defaultdict(list)
-    curated = Path.cwd().joinpath("curated")
-    raw = Path.cwd().joinpath("raw")
+    curated = Path.cwd().joinpath('data',"curated")
+    raw = Path.cwd().joinpath('data',"raw")
 
     for path in [curated, raw]:
         if not path.is_dir():
@@ -118,40 +117,27 @@ def parse_files_into_raw_curated(
 
         file.rename(raw.joinpath(*data_lake_path).joinpath(file.name))
 
-        file_log_dict[file].append(
-            {"extracDate": date, "key": key, "ingestionDate": pd.Timestamp("today")}
-        )
+
 
     c_path = curated.joinpath(pd.Timestamp("today").strftime("%Y_%m_%d_%H_%M"))
     if not c_path.is_dir():
         c_path.mkdir(parents=True)
 
-    dataframe.to_parquet(
-        c_path.joinpath("halfords_products.gzip"), compression="gzip", index=False
+    dataframe.to_csv(
+        c_path.joinpath("halfords_products.csv.gz"), compression="gzip", index=False
     )
 
-    file_log_dict["curated"].append(
-        {"today": pd.Timestamp("today"), "curated_path": c_path}
-    )
-    return file_log_dict
-
-
-def create_log_file(log_dict) -> dict:
-
-    log_dict_path = Path.cwd().joinpath("log")
-    if not log_dict_path.is_dir():
-        log_dict_path.mkdir()
-    file_date = pd.Timestamp("today").strftime("%Y_%m_%d")
-    with open(log_dict_path.joinpath(f"{file_date}.json"), "w") as fp:
-        json.dump(log_dict, fp)
+    return dataframe 
+    
 
 
 if __name__ == "__main__":
-    file_paths = get_latest_files(path=Path.cwd(), ext="json")
+    file_paths = get_latest_files(path=Path(r'halfords\spiders'), ext="json")
     concat_dfs = concat_dataframe(
         file_paths, max_date=False, unique_key="_", position=-1
     )
     clean_df = clean_halfords_json(concat_dfs)
-    log_dicts = parse_files_into_raw_curated(file_paths=file_paths, dataframe=clean_df)
-    create_log_file(log_dicts)
+    dataframe = parse_files_into_raw_curated(file_paths=file_paths, dataframe=clean_df)
+    #write to database.
+    import_data_to_db(dataframe,connection=engine,schema='ext_hal',table_name='product_data')
 

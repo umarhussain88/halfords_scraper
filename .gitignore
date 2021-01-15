@@ -5,3 +5,4 @@ curated
 /env
 *.json
 *.pyc
+halfords/__pycache__/*
